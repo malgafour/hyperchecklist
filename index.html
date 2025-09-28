@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Interactive Checklist</title>
+    <title>Checklist with Import/Export</title>
     <style>
         * {
             margin: 0;
@@ -23,7 +23,7 @@
 
         .container {
             width: 100%;
-            max-width: 500px;
+            max-width: 550px;
             background-color: white;
             border-radius: 12px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
@@ -35,6 +35,7 @@
             color: white;
             padding: 20px;
             text-align: center;
+            position: relative;
         }
 
         .header h1 {
@@ -45,6 +46,29 @@
         .header p {
             opacity: 0.8;
             font-size: 14px;
+        }
+
+        .import-export {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .import-export button {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 6px;
+            padding: 6px 12px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s;
+        }
+
+        .import-export button:hover {
+            background: rgba(255, 255, 255, 0.3);
         }
 
         .input-section {
@@ -177,6 +201,77 @@
             color: #666;
         }
 
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background-color: white;
+            padding: 25px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .modal h2 {
+            margin-bottom: 15px;
+            color: #4a00e0;
+        }
+
+        .modal textarea {
+            width: 100%;
+            height: 200px;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            resize: vertical;
+            font-family: monospace;
+        }
+
+        .modal-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .modal-buttons button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+
+        .cancel-btn {
+            background-color: #f5f5f5;
+            color: #333;
+        }
+
+        .cancel-btn:hover {
+            background-color: #e0e0e0;
+        }
+
+        .confirm-btn {
+            background: linear-gradient(to right, #4a00e0, #8e2de2);
+            color: white;
+        }
+
+        .confirm-btn:hover {
+            opacity: 0.9;
+        }
+
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
@@ -190,6 +285,12 @@
             body {
                 padding: 0;
             }
+            
+            .import-export {
+                position: static;
+                justify-content: center;
+                margin-top: 15px;
+            }
         }
     </style>
 </head>
@@ -198,6 +299,10 @@
         <div class="header">
             <h1>My Checklist</h1>
             <p>Add, edit, and track your tasks</p>
+            <div class="import-export">
+                <button id="exportBtn">Export</button>
+                <button id="importBtn">Import</button>
+            </div>
         </div>
         
         <div class="input-section">
@@ -215,6 +320,32 @@
         </div>
     </div>
 
+    <!-- Export Modal -->
+    <div class="modal" id="exportModal">
+        <div class="modal-content">
+            <h2>Export Checklist Data</h2>
+            <p>Copy the text below and save it to a file:</p>
+            <textarea id="exportData" readonly></textarea>
+            <div class="modal-buttons">
+                <button class="cancel-btn" id="closeExport">Close</button>
+                <button class="confirm-btn" id="copyExport">Copy to Clipboard</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import Modal -->
+    <div class="modal" id="importModal">
+        <div class="modal-content">
+            <h2>Import Checklist Data</h2>
+            <p>Paste your exported checklist data below:</p>
+            <textarea id="importData" placeholder="Paste your exported data here..."></textarea>
+            <div class="modal-buttons">
+                <button class="cancel-btn" id="closeImport">Cancel</button>
+                <button class="confirm-btn" id="confirmImport">Import Data</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // DOM elements
         const taskInput = document.getElementById('taskInput');
@@ -222,6 +353,18 @@
         const tasksContainer = document.getElementById('tasksContainer');
         const totalTasksSpan = document.getElementById('totalTasks');
         const completedTasksSpan = document.getElementById('completedTasks');
+        
+        // Import/Export elements
+        const exportBtn = document.getElementById('exportBtn');
+        const importBtn = document.getElementById('importBtn');
+        const exportModal = document.getElementById('exportModal');
+        const importModal = document.getElementById('importModal');
+        const exportData = document.getElementById('exportData');
+        const importData = document.getElementById('importData');
+        const closeExport = document.getElementById('closeExport');
+        const copyExport = document.getElementById('copyExport');
+        const closeImport = document.getElementById('closeImport');
+        const confirmImport = document.getElementById('confirmImport');
 
         // Load tasks from localStorage on page load
         document.addEventListener('DOMContentLoaded', loadTasks);
@@ -231,6 +374,24 @@
         taskInput.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
                 addTask();
+            }
+        });
+
+        // Import/Export events
+        exportBtn.addEventListener('click', showExportModal);
+        importBtn.addEventListener('click', showImportModal);
+        closeExport.addEventListener('click', () => exportModal.style.display = 'none');
+        closeImport.addEventListener('click', () => importModal.style.display = 'none');
+        copyExport.addEventListener('click', copyToClipboard);
+        confirmImport.addEventListener('click', importFromData);
+
+        // Close modals when clicking outside
+        window.addEventListener('click', function(event) {
+            if (event.target === exportModal) {
+                exportModal.style.display = 'none';
+            }
+            if (event.target === importModal) {
+                importModal.style.display = 'none';
             }
         });
 
@@ -358,6 +519,58 @@
                 
                 tasksContainer.appendChild(taskElement);
             });
+        }
+
+        // Show export modal
+        function showExportModal() {
+            const tasks = getTasksFromStorage();
+            exportData.value = JSON.stringify(tasks, null, 2);
+            exportModal.style.display = 'flex';
+        }
+
+        // Show import modal
+        function showImportModal() {
+            importData.value = '';
+            importModal.style.display = 'flex';
+        }
+
+        // Copy export data to clipboard
+        function copyToClipboard() {
+            exportData.select();
+            document.execCommand('copy');
+            alert('Data copied to clipboard!');
+        }
+
+        // Import data from text
+        function importFromData() {
+            try {
+                const data = importData.value.trim();
+                if (!data) {
+                    alert('Please paste some data to import!');
+                    return;
+                }
+                
+                const tasks = JSON.parse(data);
+                
+                if (!Array.isArray(tasks)) {
+                    throw new Error('Invalid data format');
+                }
+                
+                // Validate each task
+                for (const task of tasks) {
+                    if (!task.id || !task.text || typeof task.completed !== 'boolean') {
+                        throw new Error('Invalid task format');
+                    }
+                }
+                
+                // Save imported tasks
+                saveTasksToStorage(tasks);
+                renderTasks();
+                importModal.style.display = 'none';
+                alert('Data imported successfully!');
+            } catch (error) {
+                alert('Error importing data: ' + error.message);
+            }
         }
 
         // Load tasks on page initialization
